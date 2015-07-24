@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<head>
+  <title>Pusher Test</title>
+  <script src="https://js.pusher.com/2.2/pusher.min.js"></script>
+  <script>
+
+    Pusher.channel_auth_endpoint = "pusher_auth.php";
+
+    // Enable pusher logging - don't include this in production
+    Pusher.log = function(message) {
+      if (window.console && window.console.log) {
+        window.console.log(message);
+      }
+    };
+
+    var pusher = new Pusher('5c6370621f4768963ab4', {
+      encrypted: true
+    });
+    var channel = pusher.subscribe('presence-my_game_channel');
+    channel.bind('my_event', function(data) {
+      alert(data.message);
+    });
+  
+    channel.bind('pusher:subscription_succeeded', function(members) {
+      console.log("HEY",members);
+    });
+    
+    var players = [];
+    
+    var me = null;
+
+    channel.bind('pusher:subscription_succeeded', function(members) {
+      members.each(function(member){
+        players[member.id] = {
+          mesh : new THREE.Mesh(
+            new THREE.BoxGeometry(1,1,1),
+            new THREE.MeshLambertMaterial({color: 'orange'})
+          )
+        };
+    
+        players[member.id].mesh.position.y = 0.5;
+    
+        scene.add(players[member.id].mesh);
+        
+        me = members.me;
+      });
+      
+      channel.bind('client-' + members.me.id + '_update_player', function(player){
+        players[player.id].mesh.position.set(
+          player.position.x,
+          player.position.y,
+          player.position.z
+        );
+        
+        players[player.id].mesh.rotation.y = player.rotation;
+        
+        players[player.id].angle_diff = player.angle_diff;
+        players[player.id].direction = player.direction;
+        players[player.id].distance = player.distance;
+        
+        players[player.id].facing_destination = player.facing_destination;
+      });
+    });
+    
+    channel.bind('pusher:member_added', function(member) {
+      players[member.id] = {
+        mesh : new THREE.Mesh(
+          new THREE.BoxGeometry(1,1,1),
+          new THREE.MeshLambertMaterial({color: 'orange'})
+        )
+      };
+    
+      players[member.id].mesh.position.y = 0.5;
+    
+      scene.add(players[member.id].mesh);
+      
+      channel.trigger('client-' + member.id + '_update_player', {
+        id : me.id,
+        position : players[me.id].mesh.position,
+        rotation : players[me.id].mesh.rotation.y,
+        angle_diff : players[me.id].angle_diff,
+        direction : players[me.id].direction,
+        distance : players[me.id].distance,
+        facing_destination : players[me.id].facing_destination
+      });
+    });
+    
+    channel.bind('client-update_player', function(player){
+      players[player.id].mesh.position.set(
+        player.position.x,
+        player.position.y,
+        player.position.z
+      );
+    
+      players[player.id].mesh.rotation.y = player.rotation;
+    
+      players[player.id].angle_diff = player.angle_diff;
+      players[player.id].direction = player.direction;
+      players[player.id].distance = player.distance;
+    
+      players[player.id].facing_destination = player.facing_destination;
+    });
+    
+    channel.bind('pusher:member_removed', function(member) {
+      scene.remove(players[member.id].mesh);
+      delete players[member.id];
+    });
+    
+  </script>
+  
+  <style>
+  body{
+    margin: 0;
+  }
+  </style>
+</head>
+
+<body></body>
+
+<script src="http://threejs.org/build/three.min.js"></script>
+
+<script>
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+  var renderer = new THREE.WebGLRenderer();
+  renderer.setSize( window.innerWidth, window.innerHeight );
+
+  document.body.appendChild( renderer.domElement );
+
+  camera.position.z = 5;
+  camera.position.y = 1.5;
+  
+  var plane = new THREE.Mesh(
+    new THREE.PlaneBufferGeometry(20, 20),
+    new THREE.MeshLambertMaterial({color: 'seagreen'})
+  );
+
+  plane.rotation.x = -1.57079633; // Radians
+
+  scene.add(plane);
+
+  var ambient = new THREE.AmbientLight(0x000044);
+  scene.add(ambient);
+
+  var directional = new THREE.DirectionalLight(0xffffff);
+  directional.position.set(1, 1, 1).normalize();
+
+  scene.add(directional);
+
+  var raycaster = new THREE.Raycaster();
+  var mouse = new THREE.Vector2();
+
+  document.onclick=function(event){
+
+    mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+    mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+
+    raycaster.setFromCamera( mouse, camera )
+
+    var intersects = raycaster.intersectObject(plane);
+
+    if (intersects.length > 0) {
+      var intersection = intersects[0].point;
+      
+      var opp = players[me.id].mesh.position.z - intersection.z,
+          adj = intersection.x - players[me.id].mesh.position.x,
+          hyp = Math.sqrt((opp*opp) + (adj*adj));
+        
+      players[me.id].angle_diff = ( ( Math.asin(opp/hyp) - 1.57079633 ) * ( adj <= 0 ? -1 : 1) ) - players[me.id].mesh.rotation.y;
+        
+      if (Math.abs(players[me.id].angle_diff) / 6.28318531 > 1){
+        players[me.id].angle_diff -= Math.floor(players[me.id].angle_diff / 6.28318531) * 6.28318531;
+      }
+        
+      if (Math.abs(players[me.id].angle_diff) > 3.14159265){
+        players[me.id].angle_diff += 6.28318531 * (players[me.id].angle_diff > 0 ? -1 : 1 );
+      }
+        
+      players[me.id].direction = players[me.id].angle_diff > 0 ? 1 : -1;
+        
+      players[me.id].facing_destination = false;
+      
+      
+      players[me.id].distance = hyp;
+      
+      channel.trigger('client-update_player', {
+        id : me.id,
+        position : players[me.id].mesh.position,
+        rotation : players[me.id].mesh.rotation.y,
+        angle_diff : players[me.id].angle_diff,
+        direction : players[me.id].direction,
+        distance : players[me.id].distance,
+        facing_destination : players[me.id].facing_destination
+      });
+    }
+  };
+
+  function render() {
+
+    for(var player_id in players){
+        
+      if(players[player_id].angle_diff){
+        players[player_id].mesh.rotation.y += players[player_id].direction * 0.05;
+    
+        players[player_id].angle_diff += players[player_id].direction * -0.05;
+    
+        if( players[player_id].direction == 1 && 
+            players[player_id].angle_diff < 0 ||
+            players[player_id].direction == -1 && 
+            players[player_id].angle_diff > 0 ){
+          players[player_id].facing_destination = true;
+          players[player_id].mesh.rotation.y += players[player_id].angle_diff;
+          players[player_id].angle_diff = undefined;
+        }
+      }
+      
+      if(players[player_id].facing_destination && 
+         players[player_id].distance > 0){
+        players[player_id].mesh.translateZ(-0.1);
+        players[player_id].distance-=0.1;
+      }
+    }
+
+    requestAnimationFrame(render);
+    renderer.render(scene, camera);
+  }
+
+  render();
+</script>
