@@ -5,3 +5,5 @@ Move a block around and see your friends blocks move around too! ...or just open
 See the post on [Pusher](https://blog.pusher.com/building-3d-multiplayer-game-pusher/)
 
 [Live demo](http://charliejwalter.net/tutorials/how-to-build-a-3d-multiplayer-game-with-pusher/)
+
+![](https://blog.pusher.com/wp-content/uploads/2014/10/10-smooth-movement-with-other-players.gif)
